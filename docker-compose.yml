@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME:-localhost}
+      - ACME_EMAIL=${ACME_EMAIL:-admin@localhost}
+    depends_on:
+      - api
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_HOST=rabbit
+      - RABBITMQ_USER=${RABBIT_USER:-guest}
+      - RABBITMQ_PASS=${RABBIT_PASS:-guest}
+    depends_on:
+      - rabbit
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    restart: unless-stopped
+    command: php worker/worker.php
+    environment:
+      - RABBITMQ_HOST=rabbit
+      - RABBITMQ_USER=${RABBIT_USER:-guest}
+      - RABBITMQ_PASS=${RABBIT_PASS:-guest}
+      - GOTENBERG_URL=http://gotenberg:3000
+    depends_on:
+      rabbit:
+        condition: service_healthy
+      gotenberg:
+        condition: service_started
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    # Gotenberg doesn't need ports exposed if only worker talks to it
+
+  rabbit:
+    image: rabbitmq:3-management-alpine
+    restart: unless-stopped
+    ports:
+      - "15672:15672" # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBIT_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBIT_PASS:-guest}
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,16 @@
+{
+    email {$ACME_EMAIL}
+}
+
+{$DOMAIN_NAME} {
+    reverse_proxy api:9000 {
+        transport fastcgi {
+            split .php
+        }
+    }
+    
+    # Route all requests to index.php
+    rewrite * /api/index.php
+    
+    file_server
+}
