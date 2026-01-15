@@ -3,6 +3,7 @@
 }
 
 {$DOMAIN_NAME} {
+    root * /app
     reverse_proxy api:9000 {
         transport fastcgi {
             split .php

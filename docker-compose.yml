@@ -26,6 +26,7 @@ services:
       - RABBITMQ_HOST=rabbit
       - RABBITMQ_USER=${RABBIT_USER:-guest}
       - RABBITMQ_PASS=${RABBIT_PASS:-guest}
+      - SECURITY_TOKEN=${SECURITY_TOKEN}
     depends_on:
       - rabbit
 

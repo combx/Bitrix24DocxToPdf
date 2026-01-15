@@ -87,7 +87,7 @@ try {
 
     logMsg("Task queued successfully to $queue");
 
-    jsonResponse(['success' => true]);
+    jsonResponse(['success' => true, 'status' => 'success', 'data' => []]);
 
 } catch (Exception $e) {
     logMsg("Error: " . $e->getMessage());

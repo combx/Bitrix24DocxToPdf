@@ -57,6 +57,11 @@ $callback = function (AMQPMessage $msg) use ($httpClient, $gotenbergUrl) {
         $inputFile = $tempFile . '.docx';
         rename($tempFile, $inputFile);
 
+        // Extract original filename
+        $originalName = basename(parse_url($sourceUrl, PHP_URL_PATH));
+        $nameWithoutExt = pathinfo($originalName, PATHINFO_FILENAME);
+        $finalFilename = $nameWithoutExt . '.pdf';
+
         logMsg("Downloading $sourceUrl...");
         $httpClient->request('GET', $sourceUrl, ['sink' => $inputFile]);
 
@@ -69,7 +74,7 @@ $callback = function (AMQPMessage $msg) use ($httpClient, $gotenbergUrl) {
                 [
                     'name' => 'files',
                     'contents' => fopen($inputFile, 'r'),
-                    'filename' => 'document.docx'
+                    'filename' => $originalName // Gotenberg might use this
                 ]
             ]
         ]);
@@ -86,19 +91,45 @@ $callback = function (AMQPMessage $msg) use ($httpClient, $gotenbergUrl) {
 
         // 3. Upload Result
         if ($backUrl) {
-            logMsg("Uploading to $backUrl...");
+            logMsg("Uploading to $backUrl as $finalFilename...");
+            // Step 3.1: Upload File
+            logMsg("Uploading file part to $backUrl as $finalFilename...");
             $uploadResp = $httpClient->request('POST', $backUrl, [
                 'multipart' => [
                     [
                         'name' => 'file',
                         'contents' => fopen($pdfPath, 'r'),
-                        'filename' => 'document.pdf'
+                        'filename' => $finalFilename,
+                        'headers'  => ['Content-Type' => 'application/pdf']
                     ],
-                    // Assuming Bitrix only wants PDF, or we loop if multiple formats needed.
-                    // Simplified for now to just PDF as it's the main goal.
+                    [
+                        'name' => 'file_name',
+                        'contents' => $finalFilename
+                    ],
+                    [
+                        'name' => 'last_part',
+                        'contents' => 'y'
+                    ],
+                    [
+                        'name' => 'file_size',
+                        'contents' => (string)filesize($pdfPath)
+                    ]
                 ]
             ]);
             logMsg("Upload status: " . $uploadResp->getStatusCode());
+
+            // Step 3.2: Finish Command
+            logMsg("Finishing command at $backUrl...");
+            $finishResp = $httpClient->request('POST', $backUrl, [
+                'form_params' => [
+                    'finish' => 'y',
+                    'result' => [
+                        'files' => [$finalFilename]
+                    ]
+                ]
+            ]);
+
+            logMsg("Finish status: " . $finishResp->getStatusCode());
         }
 
         // Cleanup

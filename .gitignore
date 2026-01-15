@@ -1,0 +1,17 @@
+# Environment variables
+.env
+
+# Dependencies
+vendor/
+
+# System
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# Logs
+*.log
+docker/php/xdebug.log
