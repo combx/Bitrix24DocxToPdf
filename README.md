@@ -111,15 +111,7 @@ docker compose logs -f worker
 > **Важно:** Если вы используете `SECURITY_TOKEN`, добавьте его в `serviceUrl`:
 > `'serviceUrl' => 'https://pdf.your-company.ru/?token=my_secret_token_abc123',`
 
-### Проверить работу в PHP-консоли Битрикса
 
-Если документы не создаются, вы можете диагностировать настройки, выполнив этот код в командной PHP-строке Битрикса:
-
-```php
-if (\Bitrix\Main\Loader::includeModule('transformer')) {
-    echo "Service URL: " . \Bitrix\Transformer\TransformerManager::getServiceUrl();
-}
-```
 
 ---
 
