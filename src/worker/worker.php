@@ -91,20 +91,41 @@ $callback = function (AMQPMessage $msg) use ($httpClient, $gotenbergUrl) {
 
         // 3. Upload Result
         if ($backUrl) {
-            logMsg("Uploading to $backUrl as $finalFilename...");
-            // Step 3.1: Upload File
-            logMsg("Uploading file part to $backUrl as $finalFilename...");
+            // Step 3.1: Get Upload Location (Where?)
+            // We need to ask Bitrix where to put the file so we get a valid absolute path
+            // that the File class can later find.
+            logMsg("Requesting upload location from $backUrl...");
+            $whereResp = $httpClient->request('POST', $backUrl, [
+                'form_params' => [
+                    'upload' => 'where',
+                    'file_id' => 'pdf', // fileKey (extension)
+                    'file_size' => (string)filesize($pdfPath)
+                ]
+            ]);
+            $whereBody = $whereResp->getBody()->getContents();
+            // logMsg("Where response: " . $whereBody);
+            
+            $whereData = json_decode($whereBody, true);
+            if (!$whereData || empty($whereData['name'])) {
+                 throw new Exception("Failed to get upload location: " . $whereBody);
+            }
+            
+            // This is the absolute path where Bitrix expects the file
+            $targetPath = $whereData['name']; 
+
+            // Step 3.2: Upload File
+            logMsg("Uploading file part to $backUrl as $targetPath...");
             $uploadResp = $httpClient->request('POST', $backUrl, [
                 'multipart' => [
                     [
                         'name' => 'file',
                         'contents' => fopen($pdfPath, 'r'),
-                        'filename' => $finalFilename,
+                        'filename' => $finalFilename, // The filename in the multipart header (visual)
                         'headers'  => ['Content-Type' => 'application/pdf']
                     ],
                     [
                         'name' => 'file_name',
-                        'contents' => $finalFilename
+                        'contents' => $targetPath // The specific path Bitrix wants
                     ],
                     [
                         'name' => 'last_part',
@@ -117,19 +138,23 @@ $callback = function (AMQPMessage $msg) use ($httpClient, $gotenbergUrl) {
                 ]
             ]);
             logMsg("Upload status: " . $uploadResp->getStatusCode());
+            // Check for success in response if needed
 
-            // Step 3.2: Finish Command
+            // Step 3.3: Finish Command
             logMsg("Finishing command at $backUrl...");
             $finishResp = $httpClient->request('POST', $backUrl, [
                 'form_params' => [
                     'finish' => 'y',
                     'result' => [
-                        'files' => [$finalFilename]
+                        'files' => [
+                            'pdf' => $targetPath
+                        ]
                     ]
                 ]
             ]);
 
             logMsg("Finish status: " . $finishResp->getStatusCode());
+            // logMsg("Finish response: " . $finishResp->getBody());
         }
 
         // Cleanup
